@@ -1,0 +1,7 @@
+agent:
+  learning_rate: 0.1
+  initial_epsilon: 1.0
+  epsilon_decay: !!float 2e-5
+  final_epsilon: 0.1
+
+num_episodes: 1000
