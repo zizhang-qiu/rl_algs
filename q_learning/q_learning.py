@@ -19,7 +19,7 @@ from tqdm import tqdm
 env = gym.make("CliffWalking-v0")
 
 
-class BlackjackAgent:
+class QLearningAgent:
     def __init__(
             self,
             learning_rate: float,
@@ -89,7 +89,7 @@ if __name__ == '__main__':
     with open("q_learning.yaml", "r") as f:
         conf = yaml.full_load(f)
     env = gym.wrappers.RecordEpisodeStatistics(env, deque_size=conf["num_episodes"])
-    agent = BlackjackAgent(
+    agent = QLearningAgent(
         **conf["agent"]
     )
 

@@ -1,0 +1,7 @@
+agent:
+  lr: 0.1
+  epsilon : 0.1
+  gamma : 0.99
+
+
+num_episodes: 1000
