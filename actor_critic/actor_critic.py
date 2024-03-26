@@ -19,7 +19,7 @@ env = gym.make('CartPole-v1')
 num_states = env.observation_space.shape[0]
 num_actions = env.action_space.n
 
-num_episodes = 1000
+num_episodes = 500
 
 
 class Experience(NamedTuple):
@@ -127,6 +127,9 @@ if __name__ == '__main__':
     lengths = np.array(env.length_queue).flatten()
     axs[0].set_title("Episode rewards")
     axs[0].plot(range(len(returns)), returns)
+
+    axs[1].set_title("Episode lengths")
+    axs[1].plot(range(len(lengths)), lengths)
 
     plt.tight_layout()
     plt.show()
