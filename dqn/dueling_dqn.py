@@ -2,17 +2,17 @@
 @author: qzz
 @contact:q873264077@gmail.com
 @version: 1.0.0
-@file: double_dqn.py
-@time: 2024/3/28 11:21
+@file: dueling_dqn.py
+@time: 2024/3/28 17:27
 """
-
 import gymnasium as gym
 import numpy as np
 import torch
+import torch.nn as nn
 from matplotlib import pyplot as plt
 from tqdm import tqdm
 
-from dqn import DeepQNet, ReplayBuffer
+from dqn import ReplayBuffer
 
 env = gym.make('CartPole-v1')
 num_states = env.observation_space.shape[0]
@@ -21,12 +21,32 @@ num_actions = env.action_space.n
 num_episodes = 2000
 
 
-class DoubleDQNAgent:
+class DuelingNet(nn.Module):
+    def __init__(self, input_dim: int, output_dim: int, hidden_dim: int):
+        super().__init__()
+        self.body = torch.nn.Sequential(
+            torch.nn.Linear(input_dim, hidden_dim),
+            torch.nn.ReLU(),
+            torch.nn.Linear(hidden_dim, hidden_dim),
+            torch.nn.ReLU()
+        )
+        self.v_head = nn.Linear(hidden_dim, 1)
+        self.a_head = nn.Linear(hidden_dim, output_dim)
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        x = self.body(x)
+        v = self.v_head(x)
+        a = self.a_head(x)
+        q = v + (a - torch.mean(a, dim=1, keepdim=True))
+        return q
+
+
+class DuelingQAgent:
     def __init__(self, input_dim: int, output_dim: int, hidden_dim: int,
                  lr: float, gamma: float, eps: float, capacity: int, batch_size: int, sync_freq: int):
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
-        self.net = DeepQNet(input_dim, output_dim, hidden_dim).to(self.device)
-        self.target_net = DeepQNet(input_dim, output_dim, hidden_dim).to(self.device)
+        self.net = DuelingNet(input_dim, output_dim, hidden_dim).to(self.device)
+        self.target_net = DuelingNet(input_dim, output_dim, hidden_dim).to(self.device)
         self.lr = lr
         self.gamma = gamma
         self.eps = eps
@@ -56,15 +76,10 @@ class DoubleDQNAgent:
         state_batch, action_batch, reward_batch, terminal_batch, next_state_batch \
             = self.replay_buffer.sample(self.batch_size)
 
-        q = self.net(torch.from_numpy(state_batch).to(self.device))
-        actions = torch.argmax(q, dim=1)
-
-        target_q = self.target_net(torch.from_numpy(state_batch).to(self.device)).detach()
-        target_qa = target_q.gather(1, actions.unsqueeze(1))
-
-        yj = torch.from_numpy(reward_batch).to(self.device) + self.gamma * target_qa * torch.from_numpy(
+        target_q = self.target_net(torch.from_numpy(state_batch).to(self.device)).max(1)[0].view(self.batch_size,
+                                                                                                 1).detach()
+        yj = torch.from_numpy(reward_batch).to(self.device) + self.gamma * target_q * torch.from_numpy(
             terminal_batch).to(self.device)
-
         q = self.net(torch.from_numpy(state_batch).to(self.device)).gather(1, torch.from_numpy(action_batch).to(
             self.device))
 
@@ -79,15 +94,15 @@ class DoubleDQNAgent:
 
 
 if __name__ == '__main__':
-    agent = DoubleDQNAgent(input_dim=num_states,
-                           output_dim=num_actions,
-                           hidden_dim=20,
-                           lr=1e-3,
-                           gamma=0.99,
-                           eps=0.1,
-                           capacity=2000,
-                           batch_size=32,
-                           sync_freq=100)
+    agent = DuelingQAgent(input_dim=num_states,
+                          output_dim=num_actions,
+                          hidden_dim=40,
+                          lr=1e-2,
+                          gamma=0.99,
+                          eps=0.01,
+                          capacity=2000,
+                          batch_size=32,
+                          sync_freq=100)
     env = gym.wrappers.RecordEpisodeStatistics(env, deque_size=num_episodes)
 
     for i in tqdm(range(num_episodes)):
@@ -99,10 +114,10 @@ if __name__ == '__main__':
             next_obs, reward, terminated, truncated, info = env.step(action)
             done = terminated or truncated
             x, x_dot, theta, theta_dot = next_obs
-            # r1 = (env.x_threshold - abs(x)) / env.x_threshold - 0.8
-            # r2 = (env.theta_threshold_radians - abs(theta)) / env.theta_threshold_radians - 0.5
-            # r = r1 + r2
-            agent.store_transition(obs, action, reward, done, next_obs)
+            r1 = (env.x_threshold - abs(x)) / env.x_threshold - 0.8
+            r2 = (env.theta_threshold_radians - abs(theta)) / env.theta_threshold_radians - 0.5
+            r = r1 + r2
+            agent.store_transition(obs, action, r, done, next_obs)
             # Update the q network.
             agent.update()
             obs = next_obs
