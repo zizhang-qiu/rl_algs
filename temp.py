@@ -7,7 +7,7 @@
 """
 
 import gymnasium as gym
-env = gym.make("CliffWalking-v0")
+env = gym.make("GymV26Environment-v0", env_id="ALE/Pong")
 
 print(env.spec)
 print(env.observation_space)
